@@ -2,7 +2,7 @@
 
 
 //companies
-type Company = {
+export type Company = {
     id: string;
     name: string;
     country: string; // Country.code
@@ -10,14 +10,14 @@ type Company = {
 };
 
 //Emission
-type GhgEmissions = {
+export type GhgEmissions = {
     yearMonth: string; // "2025-01", "2025-02", "2025-03"
     source: string; // gasoline, lpg, diesel, etc
     emmissions: number; // tons of CO2 equivalent
 };
 
 //Posts
-type Post = {
+export type Post = {
     id: string;
     title: string;
     resource: string; // Company.id
