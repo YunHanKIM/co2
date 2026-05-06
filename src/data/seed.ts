@@ -4,7 +4,7 @@ import type {
   Country,
   EmissionFactorRecord,
   Post,
-} from '../types'
+} from '@/types'
 
 
 export const countries: Country[] = [
