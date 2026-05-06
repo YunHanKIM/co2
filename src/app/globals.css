@@ -1,1 +1,19 @@
 @import "tailwindcss";
+
+/* 앱 디자인 토큰 (Tailwind v4 @theme) */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, sans-serif, "Apple SD Gothic Neo",
+    "Malgun Gothic", sans-serif;
+
+  --color-app-bg: #f1f5f9;
+  --color-app-surface: #ffffff;
+  --color-app-border: #e2e8f0;
+  --color-app-text: #0f172a;
+  --color-app-muted: #64748b;
+  --color-app-accent: #0f766e;
+  --color-app-accent-hover: #115e59;
+  --color-app-accent-soft: #ccfbf1;
+  --color-app-sidebar: #0f172a;
+  --color-app-sidebar-muted: #94a3b8;
+  --color-app-sidebar-hover: #1e293b;
+}
