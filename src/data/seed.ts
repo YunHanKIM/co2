@@ -9,8 +9,7 @@ import type {
 
 export const countries: Country[] = [
   { code: 'US', name: 'United States' },
-  { code: 'DE', name: 'Germany' },
-  { code: 'KR', name: 'South Korea' },
+  { code: 'DE', name: 'Germany' }
 ]
 
 // 회사별 월 배출량
