@@ -7,12 +7,18 @@ import type {
 } from '@/types'
 
 import {
+  validateCreateActivity,
+  type CreateActivityInput,
+} from '@/lib/activity-validation'
+import {
   activityRecords as seedActivityRecords,
   companies as seedCompanies,
   countries as seedCountries,
   emissionFactors as seedEmissionFactors,
   posts as seedPosts,
 } from '@/data/seed'
+
+export type { CreateActivityInput } from '@/lib/activity-validation'
 
 const delay = (ms: number) => new Promise<void>((res) => setTimeout(res, ms))
 
@@ -80,6 +86,35 @@ export const fetchEmissionFactors = async (): Promise<EmissionFactorRecord[]> =>
 }
 
 export type CreateOrUpdatePostInput = Omit<Post, 'id'> & { id?: string }
+
+export const createActivityRecord = async (
+  input: CreateActivityInput,
+): Promise<ActivityRecord> => {
+  await delay(jitter())
+  const v = validateCreateActivity(input, _emissionFactors)
+  if (!v.ok) {
+    throw new Error('Invalid activity payload')
+  }
+  const rec: ActivityRecord = { ...v.data, id: crypto.randomUUID() }
+  _activityRecords = [..._activityRecords, rec]
+  return cloneActivity(rec)
+}
+
+export const importActivityRecords = async (
+  inputs: CreateActivityInput[],
+): Promise<ActivityRecord[]> => {
+  await delay(jitter())
+  const created: ActivityRecord[] = []
+  for (const raw of inputs) {
+    const v = validateCreateActivity(raw, _emissionFactors)
+    if (!v.ok) {
+      throw new Error('Invalid row in batch')
+    }
+    created.push({ ...v.data, id: crypto.randomUUID() })
+  }
+  _activityRecords = [..._activityRecords, ...created]
+  return created.map(cloneActivity)
+}
 
 export const createOrUpdatePost = async (
   p: CreateOrUpdatePostInput,

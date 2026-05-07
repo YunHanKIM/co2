@@ -3,6 +3,7 @@
 import dynamic from 'next/dynamic'
 import { useCallback, useMemo, useState } from 'react'
 import type { ActivityCategory, ActivityRecord, EmissionFactorRecord } from '@/types'
+import { PcfActivityInputPanel } from '@/components/pcf/PcfActivityInputPanel'
 import {
   aggregatePcfByCategory,
   aggregatePcfByMonth,
@@ -33,7 +34,7 @@ const PcfCategoryChart = dynamic(
 )
 
 type PcfDashboardProps = {
-  activities: ActivityRecord[]
+  initialActivities: ActivityRecord[]
   factors: EmissionFactorRecord[]
 }
 
@@ -44,8 +45,13 @@ const CATEGORY_OPTIONS: { value: 'all' | ActivityCategory; label: string }[] = [
   { value: 'transport', label: '운송 (Scope 3)' },
 ]
 
-const PcfDashboard = ({ activities, factors }: PcfDashboardProps) => {
+const PcfDashboard = ({ initialActivities, factors }: PcfDashboardProps) => {
+  const [activities, setActivities] = useState<ActivityRecord[]>(initialActivities)
   const [category, setCategory] = useState<'all' | ActivityCategory>('all')
+
+  const handleRecordsAdded = useCallback((records: ActivityRecord[]) => {
+    setActivities((prev) => [...prev, ...records])
+  }, [])
 
   const computedAll = useMemo(
     () => computePcfRows(activities, factors),
@@ -84,9 +90,14 @@ const PcfDashboard = ({ activities, factors }: PcfDashboardProps) => {
         </h1>
         <p className="max-w-2xl text-sm text-app-muted">
           원본 활동(전기·원소재·운송)에 배출계수(kg CO₂e/단위)를 곱해 행별
-          배출량을 산출합니다.{' '}
+          배출량을 산출합니다. 아래에서 행을 추가하면 차트·표에 즉시 반영됩니다.
         </p>
       </header>
+
+      <PcfActivityInputPanel
+        factors={factors}
+        onRecordsAdded={handleRecordsAdded}
+      />
 
       <section
         className="rounded-xl border border-app-border bg-app-surface p-4 shadow-sm md:p-5"

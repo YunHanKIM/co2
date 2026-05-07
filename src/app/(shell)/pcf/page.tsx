@@ -9,7 +9,7 @@ const PcfPage = async () => {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PcfDashboard activities={activities} factors={factors} />
+      <PcfDashboard initialActivities={activities} factors={factors} />
     </div>
   )
 }
