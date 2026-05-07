@@ -10,7 +10,7 @@ Next.js 14(App Router) 기반 단일 앱입니다. 경영용 GHG 집계, PCF 활
 4. 개발: **`yarn dev`** → 브라우저에서 [http://localhost:3000](http://localhost:3000)  
 5. 배포 검증: **`yarn build`** 후 **`yarn start`**
 
-> 첫 화면(`/`)이 곧 경영 대시보드입니다. `/dashboard`는 `/`로 리다이렉트됩니다.
+> 첫 화면(`/`)이 경영 대시보드입니다.
 
 ## 기술 스택
 
@@ -106,68 +106,45 @@ erDiagram
 | `emission_factors` | `EmissionFactorRecord` |
 | `activity_records` | `ActivityRecord` |
 
-### DDL 스케치 (참고)
-
-```sql
-CREATE TABLE countries (
-  code VARCHAR(8) PRIMARY KEY,
-  name VARCHAR(128) NOT NULL
-);
-
-CREATE TABLE companies (
-  id UUID PRIMARY KEY,
-  name VARCHAR(256) NOT NULL,
-  country_code VARCHAR(8) NOT NULL REFERENCES countries (code)
-);
-
-CREATE TABLE ghg_emissions (
-  id UUID PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
-  year_month VARCHAR(7) NOT NULL,
-  source VARCHAR(64) NOT NULL,
-  emissions_tons NUMERIC(18, 6) NOT NULL,
-  UNIQUE (company_id, year_month, source)
-);
-
-CREATE TABLE posts (
-  id UUID PRIMARY KEY,
-  company_id UUID NOT NULL REFERENCES companies (id) ON DELETE CASCADE,
-  title VARCHAR(512) NOT NULL,
-  published_at TIMESTAMPTZ NOT NULL,
-  content TEXT NOT NULL
-);
-
-CREATE TABLE emission_factors (
-  factor_key VARCHAR(64) PRIMARY KEY,
-  label VARCHAR(256) NOT NULL,
-  factor_kg_co2e_per_unit NUMERIC(24, 12) NOT NULL,
-  unit VARCHAR(16) NOT NULL,
-  version VARCHAR(32) NOT NULL,
-  effective_from DATE NOT NULL
-);
-
-CREATE TABLE activity_records (
-  id UUID PRIMARY KEY,
-  occurred_on DATE NOT NULL,
-  category VARCHAR(32) NOT NULL,
-  description TEXT NOT NULL,
-  quantity NUMERIC(24, 8) NOT NULL,
-  unit VARCHAR(16) NOT NULL,
-  factor_key VARCHAR(64) NOT NULL REFERENCES emission_factors (factor_key)
-);
-CREATE INDEX idx_activity_occurred ON activity_records (occurred_on);
-CREATE INDEX idx_ghg_company_month ON ghg_emissions (company_id, year_month);
-```
 
 ## AI 사용 내역
 
 
-| 구분 | 내용 |
+### 사용 도구·환경
+
+| 항목 | 내용 |
 |------|------|
-| 사용 도구 | Cursor |
-| 활용 범위 | 라우트 구조 제안, Recharts 타입 오류 수정, 엑셀 날짜 TZ 이슈 조사 |
-| 검증 | `yarn build`, 주요 화면 수동 테스트 |
-| 비고 | 생성 코드는 리뷰·수정 후 반영 |
+| IDE / 에이전트 | Cursor(채팅·코드 에이전트, 인라인 편집) |
+| 모델 | Cursor에 내장·라우팅되는 LLM(대화 시점별 모델은 Cursor 정책에 따름) |
+| 보조 | 자동 완성·린트 표시·터미널 명령 실행 제안 등 |
+
+### 활용한 작업 유형
+
+| 단계 | AI에 맡긴 일 | 산출물 |
+|------|-------------------|--------|
+| 구조·라우팅 | `(shell)` 그룹, 사이드바·드로어 레이아웃, `/`를 대시보드로 두는 흐름 제안 | `DashboardShell`, `Sidebar`, `app/(shell)` |
+| 경영 대시보드 | `recharts` 기반 차트·필터·집계 유틸 초안, `Tooltip` 타입 오류 대응 패턴 | `EmissionsDashboard`, `emissions.ts` |
+| PCF | 활동×배출계수 합산 모듈, 월·유형 차트, 입력 패널(단일/붙여넣기/엑셀) | `pcf.ts`, `PcfDashboard`, `PcfActivityInputPanel` |
+| 검증·임포트 | `activity-validation`, 엑셀 파싱(`xlsx`), API 라우트와의 연동 | `activity-validation.ts`, `excel-import.ts`, `api/activities/*` |
+| 버그·동작 이슈 | 엑셀 날짜가 하루 밀리는 문제 → `cellDates`/`parse_date_code` 경로 정리 | `excel-import.ts`, `normalizeOccurredOn` 보강 |
+| React 패턴 | `useEffect` 내 `setState` 린트 이슈 → 파생 값(`resolvedFactorKey`)으로 대체 | `PcfActivityInputPanel.tsx` |
+| 문서 | README 실행 방법, PostgreSQL 스키마·ERD·DDL 스케치 초안 | 본 `README.md` |
+
+### 한 일
+
+- 생성 코드 읽고 프로젝트 스타일·과제 범위에 맞게 수정·통합
+- 린트로 깨지는 부분을 직접 고치고, 화면에서 입력·필터·저장·에러 UX를 확인
+- 시드 데이터·도메인 규칙(배출계수 키, 단위, 카테고리)은 과제 pdf 을 기준으로 최종 판단
+
+
+### 검증 방법
+
+| 방법 | 내용 |
+|------|------|
+| 빌드 | `yarn build`로 타입·린트·정적 페이지 생성 통과 확인 |
+| 실행 | `yarn dev` / `yarn start`로 `/`, `/pcf`, `/posts` 동작 확인 |
+| 시나리오 | 필터 변경, PCF 단일·일괄 입력, 게시글 저장·실패·재시도, 모바일 메뉴 등 |
+
 
 ---
 
