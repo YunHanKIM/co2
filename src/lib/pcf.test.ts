@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   aggregatePcfByMonth,
+  aggregatePcfByMonthByCategory,
   computePcfRows,
   totalKgCo2e,
 } from '@/lib/pcf'
@@ -54,6 +55,46 @@ describe('aggregatePcfByMonth', () => {
     )
     const months = aggregatePcfByMonth(rows)
     expect(months).toEqual([{ yearMonth: '2025-05', kg: 60 }])
+  })
+})
+
+describe('aggregatePcfByMonthByCategory', () => {
+  it('keeps category buckets per month', () => {
+    const multiFactors: EmissionFactorRecord[] = [
+      ...factors,
+      {
+        key: 'raw-plastic-1',
+        label: '플라스틱',
+        factorKgCo2ePerUnit: 2,
+        unit: 'kg',
+        version: 'v1',
+        effectiveFrom: '2025-01-01',
+      },
+    ]
+    const rows = computePcfRows(
+      [
+        baseActivity,
+        {
+          id: 'r1',
+          occurredOn: '2025-05-10',
+          category: 'raw_material',
+          description: '플라스틱 1',
+          quantity: 10,
+          unit: 'kg',
+          factorKey: 'raw-plastic-1',
+        },
+      ],
+      multiFactors,
+    )
+    const split = aggregatePcfByMonthByCategory(rows)
+    expect(split).toEqual([
+      {
+        yearMonth: '2025-05',
+        electricity: 50,
+        raw_material: 20,
+        transport: 0,
+      },
+    ])
   })
 })
 

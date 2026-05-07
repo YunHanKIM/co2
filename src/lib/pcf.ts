@@ -32,6 +32,13 @@ const CATEGORY_LABELS: Record<ActivityCategory, string> = {
 
 export const getCategoryLabel = (c: ActivityCategory) => CATEGORY_LABELS[c]
 
+/** 차트(유형별 막대·월별 다중 라인) 공통 색 */
+export const PCF_CATEGORY_COLORS: Record<ActivityCategory, string> = {
+  electricity: '#2563eb',
+  raw_material: '#d97706',
+  transport: '#7c3aed',
+}
+
 export const toYearMonth = (isoDate: string) => {
   const d = isoDate.slice(0, 10)
   const [y, m] = d.split('-')
@@ -104,6 +111,34 @@ export const filterPcfRows = (
 }
 
 export type PcfMonthPoint = { yearMonth: string; kg: number }
+
+export type PcfMonthByCategoryPoint = {
+  yearMonth: string
+  electricity: number
+  raw_material: number
+  transport: number
+}
+
+export const aggregatePcfByMonthByCategory = (
+  rows: PcfComputedRow[],
+): PcfMonthByCategoryPoint[] => {
+  const m = new Map<
+    string,
+    { electricity: number; raw_material: number; transport: number }
+  >()
+  for (const r of rows) {
+    const ym = r.yearMonth
+    let b = m.get(ym)
+    if (!b) {
+      b = { electricity: 0, raw_material: 0, transport: 0 }
+      m.set(ym, b)
+    }
+    b[r.category] += r.emissionsKgCo2e
+  }
+  return [...m.entries()]
+    .map(([yearMonth, v]) => ({ yearMonth, ...v }))
+    .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth))
+}
 
 export const aggregatePcfByMonth = (rows: PcfComputedRow[]): PcfMonthPoint[] => {
   const m = new Map<string, number>()

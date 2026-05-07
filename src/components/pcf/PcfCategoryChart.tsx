@@ -4,12 +4,14 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import type { PcfCategoryPoint } from '@/lib/pcf'
+import { PCF_CATEGORY_COLORS } from '@/lib/pcf'
 
 type PcfCategoryChartProps = {
   data: PcfCategoryPoint[]
@@ -77,7 +79,14 @@ const PcfCategoryChart = ({ data, titleId }: PcfCategoryChartProps) => {
               fontSize: '12px',
             }}
           />
-          <Bar dataKey="kg" fill="#0f766e" radius={[0, 4, 4, 0]} name="배출량" />
+          <Bar dataKey="kg" radius={[0, 4, 4, 0]} name="배출량">
+            {data.map((entry) => (
+              <Cell
+                key={entry.category}
+                fill={PCF_CATEGORY_COLORS[entry.category]}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

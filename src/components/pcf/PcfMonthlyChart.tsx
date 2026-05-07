@@ -2,6 +2,7 @@
 
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -9,11 +10,18 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { PcfMonthPoint } from '@/lib/pcf'
-import { formatYearMonthKo } from '@/lib/pcf'
+import type { ActivityCategory } from '@/types'
+import type { PcfMonthByCategoryPoint, PcfMonthPoint } from '@/lib/pcf'
+import {
+  PCF_CATEGORY_COLORS,
+  formatYearMonthKo,
+  getCategoryLabel,
+} from '@/lib/pcf'
 
 type PcfMonthlyChartProps = {
   data: PcfMonthPoint[]
+  splitByMonth: PcfMonthByCategoryPoint[]
+  categoryFilter: 'all' | ActivityCategory
   titleId: string
 }
 
@@ -21,8 +29,21 @@ const handleChartMouseDown = (e: React.MouseEvent) => {
   e.preventDefault()
 }
 
-const PcfMonthlyChart = ({ data, titleId }: PcfMonthlyChartProps) => {
-  if (data.length === 0) {
+type SplitRow = PcfMonthByCategoryPoint & { label: string }
+type TotalRow = PcfMonthPoint & { label: string }
+
+const PcfMonthlyChart = ({
+  data,
+  splitByMonth,
+  categoryFilter,
+  titleId,
+}: PcfMonthlyChartProps) => {
+  const isEmpty =
+    categoryFilter === 'all'
+      ? splitByMonth.length === 0
+      : data.length === 0
+
+  if (isEmpty) {
     return (
       <div
         className="flex h-[280px] items-center justify-center rounded-lg border border-dashed border-app-border bg-slate-50/80 text-sm text-app-muted"
@@ -34,7 +55,95 @@ const PcfMonthlyChart = ({ data, titleId }: PcfMonthlyChartProps) => {
     )
   }
 
-  const chartData = data.map((d) => ({
+  const showSplit = categoryFilter === 'all'
+
+  const formatKg = (value: unknown) =>
+    `${Number(value ?? 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} kg`
+
+  const tooltipLabel = (_: unknown, payload: readonly { payload?: { yearMonth?: string } }[]) => {
+    const ym = payload?.[0]?.payload?.yearMonth
+    return typeof ym === 'string' ? formatYearMonthKo(ym) : ''
+  }
+
+  if (showSplit) {
+    const chartData: SplitRow[] = splitByMonth.map((d) => ({
+      ...d,
+      label: formatYearMonthKo(d.yearMonth),
+    }))
+
+    return (
+      <div
+        className="chart-root h-[280px] w-full min-w-0 outline-none"
+        role="presentation"
+        tabIndex={-1}
+        onMouseDown={handleChartMouseDown}
+      >
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartData}
+            margin={{ top: 8, right: 8, left: 8, bottom: 28 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              tickLine={false}
+            />
+            <YAxis
+              tick={{ fontSize: 11, fill: '#64748b' }}
+              tickLine={false}
+              axisLine={false}
+              label={{
+                value: 'kg CO₂e',
+                angle: -90,
+                position: 'insideLeft',
+                style: { fill: '#64748b', fontSize: 11 },
+              }}
+            />
+            <Tooltip
+              formatter={(value) => [formatKg(value), '배출량']}
+              labelFormatter={tooltipLabel}
+              contentStyle={{
+                borderRadius: '8px',
+                border: '1px solid #e2e8f0',
+                fontSize: '12px',
+              }}
+            />
+            <Legend wrapperStyle={{ fontSize: 11 }} iconType="line" />
+            <Line
+              type="monotone"
+              dataKey="electricity"
+              stroke={PCF_CATEGORY_COLORS.electricity}
+              strokeWidth={2}
+              dot={{ fill: PCF_CATEGORY_COLORS.electricity, r: 3 }}
+              activeDot={{ r: 5 }}
+              name={getCategoryLabel('electricity')}
+            />
+            <Line
+              type="monotone"
+              dataKey="raw_material"
+              stroke={PCF_CATEGORY_COLORS.raw_material}
+              strokeWidth={2}
+              dot={{ fill: PCF_CATEGORY_COLORS.raw_material, r: 3 }}
+              activeDot={{ r: 5 }}
+              name={getCategoryLabel('raw_material')}
+            />
+            <Line
+              type="monotone"
+              dataKey="transport"
+              stroke={PCF_CATEGORY_COLORS.transport}
+              strokeWidth={2}
+              dot={{ fill: PCF_CATEGORY_COLORS.transport, r: 3 }}
+              activeDot={{ r: 5 }}
+              name={getCategoryLabel('transport')}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    )
+  }
+
+  const chartData: TotalRow[] = data.map((d) => ({
     ...d,
     label: formatYearMonthKo(d.yearMonth),
   }))
@@ -69,14 +178,8 @@ const PcfMonthlyChart = ({ data, titleId }: PcfMonthlyChartProps) => {
             }}
           />
           <Tooltip
-            formatter={(value) => [
-              `${Number(value ?? 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} kg`,
-              '배출량',
-            ]}
-            labelFormatter={(_, payload) => {
-              const ym = payload?.[0]?.payload?.yearMonth
-              return typeof ym === 'string' ? formatYearMonthKo(ym) : ''
-            }}
+            formatter={(value) => [formatKg(value), '배출량']}
+            labelFormatter={tooltipLabel}
             contentStyle={{
               borderRadius: '8px',
               border: '1px solid #e2e8f0',
@@ -86,11 +189,11 @@ const PcfMonthlyChart = ({ data, titleId }: PcfMonthlyChartProps) => {
           <Line
             type="monotone"
             dataKey="kg"
-            stroke="#0f766e"
+            stroke={PCF_CATEGORY_COLORS[categoryFilter]}
             strokeWidth={2}
-            dot={{ fill: '#0f766e', r: 3 }}
+            dot={{ fill: PCF_CATEGORY_COLORS[categoryFilter], r: 3 }}
             activeDot={{ r: 5 }}
-            name="배출량"
+            name={getCategoryLabel(categoryFilter)}
           />
         </LineChart>
       </ResponsiveContainer>

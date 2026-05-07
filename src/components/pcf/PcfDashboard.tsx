@@ -7,6 +7,7 @@ import { PcfActivityInputPanel } from '@/components/pcf/PcfActivityInputPanel'
 import {
   aggregatePcfByCategory,
   aggregatePcfByMonth,
+  aggregatePcfByMonthByCategory,
   computePcfRows,
   filterPcfRows,
   totalKgCo2e,
@@ -64,6 +65,10 @@ const PcfDashboard = ({ initialActivities, factors }: PcfDashboardProps) => {
   )
 
   const monthData = useMemo(() => aggregatePcfByMonth(filtered), [filtered])
+  const monthByCategory = useMemo(
+    () => aggregatePcfByMonthByCategory(computedAll),
+    [computedAll],
+  )
   const categoryData = useMemo(
     () => aggregatePcfByCategory(filtered),
     [filtered],
@@ -158,10 +163,17 @@ const PcfDashboard = ({ initialActivities, factors }: PcfDashboardProps) => {
             월별 배출 (활동일 기준)
           </h2>
           <p className="mt-1 text-xs text-app-muted">
-            같은 달 여러 행의 kg CO₂e 합계
+            {category === 'all'
+              ? '같은 달·유형별 kg CO₂e'
+              : '같은 달 여러 행의 kg CO₂e 합계'}
           </p>
           <div className="mt-4">
-            <PcfMonthlyChart data={monthData} titleId={monthlyTitleId} />
+            <PcfMonthlyChart
+              data={monthData}
+              splitByMonth={monthByCategory}
+              categoryFilter={category}
+              titleId={monthlyTitleId}
+            />
           </div>
         </section>
 
