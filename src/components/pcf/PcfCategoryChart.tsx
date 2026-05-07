@@ -9,10 +9,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { SourcePoint } from '@/lib/emissions'
+import type { PcfCategoryPoint } from '@/lib/pcf'
 
-type EmissionsBySourceChartProps = {
-  data: SourcePoint[]
+type PcfCategoryChartProps = {
+  data: PcfCategoryPoint[]
   titleId: string
 }
 
@@ -20,10 +20,7 @@ const handleChartMouseDown = (e: React.MouseEvent) => {
   e.preventDefault()
 }
 
-const EmissionsBySourceChart = ({
-  data,
-  titleId,
-}: EmissionsBySourceChartProps) => {
+const PcfCategoryChart = ({ data, titleId }: PcfCategoryChartProps) => {
   if (data.length === 0) {
     return (
       <div
@@ -31,7 +28,7 @@ const EmissionsBySourceChart = ({
         role="img"
         aria-labelledby={titleId}
       >
-        표시할 배출원 데이터가 없습니다.
+        표시할 활동 유형 데이터가 없습니다.
       </div>
     )
   }
@@ -55,7 +52,7 @@ const EmissionsBySourceChart = ({
             tick={{ fontSize: 11, fill: '#64748b' }}
             tickLine={false}
             label={{
-              value: 't CO₂e',
+              value: 'kg CO₂e',
               position: 'bottom',
               offset: 4,
               style: { fill: '#64748b', fontSize: 11 },
@@ -64,24 +61,27 @@ const EmissionsBySourceChart = ({
           <YAxis
             type="category"
             dataKey="label"
-            width={88}
+            width={72}
             tick={{ fontSize: 11, fill: '#64748b' }}
             tickLine={false}
             axisLine={false}
           />
           <Tooltip
-            formatter={(value) => [`${Number(value ?? 0)} t`, '배출량']}
+            formatter={(value) => [
+              `${Number(value ?? 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} kg`,
+              '배출량',
+            ]}
             contentStyle={{
               borderRadius: '8px',
               border: '1px solid #e2e8f0',
               fontSize: '12px',
             }}
           />
-          <Bar dataKey="tons" fill="#0f766e" radius={[0, 4, 4, 0]} name="배출량" />
+          <Bar dataKey="kg" fill="#0f766e" radius={[0, 4, 4, 0]} name="배출량" />
         </BarChart>
       </ResponsiveContainer>
     </div>
   )
 }
 
-export { EmissionsBySourceChart }
+export { PcfCategoryChart }

@@ -9,11 +9,11 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { MonthPoint } from '@/lib/emissions'
-import { formatYearMonthKo } from '@/lib/emissions'
+import type { PcfMonthPoint } from '@/lib/pcf'
+import { formatYearMonthKo } from '@/lib/pcf'
 
-type EmissionsTrendChartProps = {
-  data: MonthPoint[]
+type PcfMonthlyChartProps = {
+  data: PcfMonthPoint[]
   titleId: string
 }
 
@@ -21,7 +21,7 @@ const handleChartMouseDown = (e: React.MouseEvent) => {
   e.preventDefault()
 }
 
-const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
+const PcfMonthlyChart = ({ data, titleId }: PcfMonthlyChartProps) => {
   if (data.length === 0) {
     return (
       <div
@@ -62,14 +62,17 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
             tickLine={false}
             axisLine={false}
             label={{
-              value: 't CO₂e',
+              value: 'kg CO₂e',
               angle: -90,
               position: 'insideLeft',
               style: { fill: '#64748b', fontSize: 11 },
             }}
           />
           <Tooltip
-            formatter={(value) => [`${Number(value ?? 0)} t`, '배출량']}
+            formatter={(value) => [
+              `${Number(value ?? 0).toLocaleString('ko-KR', { maximumFractionDigits: 1 })} kg`,
+              '배출량',
+            ]}
             labelFormatter={(_, payload) => {
               const ym = payload?.[0]?.payload?.yearMonth
               return typeof ym === 'string' ? formatYearMonthKo(ym) : ''
@@ -82,7 +85,7 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
           />
           <Line
             type="monotone"
-            dataKey="tons"
+            dataKey="kg"
             stroke="#0f766e"
             strokeWidth={2}
             dot={{ fill: '#0f766e', r: 3 }}
@@ -95,4 +98,4 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
   )
 }
 
-export { EmissionsTrendChart }
+export { PcfMonthlyChart }

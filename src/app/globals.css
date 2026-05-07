@@ -17,3 +17,22 @@
   --color-app-sidebar-muted: #94a3b8;
   --color-app-sidebar-hover: #1e293b;
 }
+
+/*
+ * Recharts: 클릭 시 SVG/래퍼에 걸리는 포커스 링(검은 테두리) 제거
+ * - 일부 브라우저는 svg:focus 에 기본 outline 을 그림
+ */
+.chart-root,
+.chart-root .recharts-wrapper,
+.chart-root .recharts-responsive-container,
+.chart-root .recharts-surface,
+.chart-root svg,
+.chart-root *:focus,
+.chart-root *:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.chart-root svg:focus {
+  outline: none !important;
+}
