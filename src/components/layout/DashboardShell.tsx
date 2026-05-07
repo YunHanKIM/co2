@@ -29,7 +29,13 @@ const DashboardShell = ({ children }: DashboardShellProps) => {
   }, [])
 
   return (
-    <div className="flex min-h-screen bg-app-bg">
+    <div className="relative flex min-h-screen bg-app-bg">
+      <a
+        href="#main-content"
+        className="absolute left-0 top-0 z-[100] -translate-y-full rounded-br-lg bg-app-accent px-4 py-2 text-sm font-medium text-white transition-transform focus:translate-y-0 focus:outline-none focus:ring-2 focus:ring-app-accent-soft focus:ring-offset-2 focus:ring-offset-app-bg"
+      >
+        본문으로 건너뛰기
+      </a>
       {mobileOpen ? (
         <button
           type="button"
