@@ -10,6 +10,8 @@ Next.js 14(App Router) 기반 단일 앱입니다. 경영용 GHG 집계, PCF 활
 4. 개발: **`yarn dev`** → 브라우저에서 [http://localhost:3000](http://localhost:3000)  
 5. 배포 검증: **`yarn build`** 후 **`yarn start`**
 
+자동 테스트: **`yarn test`** (Vitest, PCF·검증·게시글 저장 시뮬레이션)
+
 > 첫 화면(`/`)이 경영 대시보드입니다.
 
 ## 기술 스택
@@ -17,6 +19,7 @@ Next.js 14(App Router) 기반 단일 앱입니다. 경영용 GHG 집계, PCF 활
 - React 18, TypeScript, Tailwind CSS v4  
 - **recharts** — 경영·PCF 차트  
 - **SheetJS (xlsx)** — 활동 데이터 엑셀 임포트  
+- **Vitest** — 소수 단위 테스트 (`yarn test`)  
 
 ## 라우트·기능
 
@@ -106,6 +109,12 @@ erDiagram
 | `emission_factors` | `EmissionFactorRecord` |
 | `activity_records` | `ActivityRecord` |
 
+## 마무리 품질 (7번)
+
+- **테스트**: `src/lib/*.test.ts` — `computePcfRows`·월 합산·단위 불일치 스킵, `validateCreateActivity` 성공·실패, `createOrUpdatePost` 지연·랜덤 실패 시뮬레이션(`Math.random` + fake timers). 실행: `yarn test` / 감시: `yarn test:watch`
+- **반응형**: `DashboardShell` 드로어·`min-w-0` 그리드 등 기존 레이아웃 유지, 제출 전 실제 폭에서 표·차트 스크롤 확인 권장
+- **접근성**: 쉘 상단에 **본문으로 건너뛰기** 링크(`#main-content`), 폼·차트·내비에 라벨/`aria-*` 사용
+- **커밋**: 과제에서 요구 시 기능 단위로 나누어 커밋(예: `feat(dashboard): …`, `test: …`, `fix: …`)
 
 ## AI 사용 내역
 
@@ -142,6 +151,7 @@ erDiagram
 | 방법 | 내용 |
 |------|------|
 | 빌드 | `yarn build`로 타입·린트·정적 페이지 생성 통과 확인 |
+| 단위 테스트 | `yarn test`로 PCF·입력 검증·게시글 저장 시뮬레이션 |
 | 실행 | `yarn dev` / `yarn start`로 `/`, `/pcf`, `/posts` 동작 확인 |
 | 시나리오 | 필터 변경, PCF 단일·일괄 입력, 게시글 저장·실패·재시도, 모바일 메뉴 등 |
 
