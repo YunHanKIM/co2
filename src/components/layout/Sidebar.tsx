@@ -76,10 +76,6 @@ const Sidebar = ({ onNavigate }: SidebarProps) => {
           )
         })}
       </nav>
-
-      <p className="border-t border-slate-700/80 px-4 py-3 text-xs text-slate-500">
-        Net Zero 여정을 위한 배출·PCF 뷰
-      </p>
     </div>
   )
 }
