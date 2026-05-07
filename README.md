@@ -2,6 +2,9 @@
 
 Next.js 14(App Router) 기반 단일 앱입니다. 경영용 GHG 집계, PCF 활동·배출계수, 게시글을 가짜(in-memory) API로 연결합니다.
 
+# 배포주소
+https://pcfdashboard.netlify.app/
+
 ## 실행 방법 (5단계)
 
 1. **Node.js** 20 LTS 권장  
