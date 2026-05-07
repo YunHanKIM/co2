@@ -4,12 +4,14 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from 'recharts'
 import type { SourcePoint } from '@/lib/emissions'
+import { getEmissionSourceColor } from '@/lib/emissions'
 
 type EmissionsBySourceChartProps = {
   data: SourcePoint[]
@@ -77,7 +79,14 @@ const EmissionsBySourceChart = ({
               fontSize: '12px',
             }}
           />
-          <Bar dataKey="tons" fill="#0f766e" radius={[0, 4, 4, 0]} name="배출량" />
+          <Bar dataKey="tons" radius={[0, 4, 4, 0]} name="배출량">
+            {data.map((entry) => (
+              <Cell
+                key={entry.source}
+                fill={getEmissionSourceColor(entry.source)}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>

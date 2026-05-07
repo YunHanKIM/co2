@@ -2,6 +2,7 @@
 
 import {
   CartesianGrid,
+  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -9,11 +10,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import type { MonthPoint } from '@/lib/emissions'
-import { formatYearMonthKo } from '@/lib/emissions'
+import type { MonthBySourcePoint } from '@/lib/emissions'
+import {
+  formatYearMonthKo,
+  getEmissionSourceColor,
+  getSourceLabel,
+} from '@/lib/emissions'
 
 type EmissionsTrendChartProps = {
-  data: MonthPoint[]
+  splitByMonth: MonthBySourcePoint[]
+  sourceKeys: string[]
   titleId: string
 }
 
@@ -21,8 +27,14 @@ const handleChartMouseDown = (e: React.MouseEvent) => {
   e.preventDefault()
 }
 
-const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
-  if (data.length === 0) {
+type SplitRow = MonthBySourcePoint & { label: string }
+
+const EmissionsTrendChart = ({
+  splitByMonth,
+  sourceKeys,
+  titleId,
+}: EmissionsTrendChartProps) => {
+  if (splitByMonth.length === 0 || sourceKeys.length === 0) {
     return (
       <div
         className="flex h-[280px] items-center justify-center rounded-lg border border-dashed border-app-border bg-slate-50/80 text-sm text-app-muted"
@@ -34,10 +46,23 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
     )
   }
 
-  const chartData = data.map((d) => ({
+  const chartData: SplitRow[] = splitByMonth.map((d) => ({
     ...d,
     label: formatYearMonthKo(d.yearMonth),
   }))
+
+  const formatTons = (value: unknown) =>
+    `${Number(value ?? 0).toLocaleString('ko-KR', { maximumFractionDigits: 2 })} t`
+
+  const tooltipLabel = (
+    _: unknown,
+    payload: readonly { payload?: { yearMonth?: string } }[],
+  ) => {
+    const ym = payload?.[0]?.payload?.yearMonth
+    return typeof ym === 'string' ? formatYearMonthKo(ym) : ''
+  }
+
+  const showLegend = sourceKeys.length > 1
 
   return (
     <div
@@ -49,7 +74,7 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={chartData}
-          margin={{ top: 8, right: 8, left: 8, bottom: 8 }}
+          margin={{ top: 8, right: 8, left: 8, bottom: showLegend ? 28 : 8 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis
@@ -69,26 +94,32 @@ const EmissionsTrendChart = ({ data, titleId }: EmissionsTrendChartProps) => {
             }}
           />
           <Tooltip
-            formatter={(value) => [`${Number(value ?? 0)} t`, '배출량']}
-            labelFormatter={(_, payload) => {
-              const ym = payload?.[0]?.payload?.yearMonth
-              return typeof ym === 'string' ? formatYearMonthKo(ym) : ''
-            }}
+            formatter={(value) => [formatTons(value), '배출량']}
+            labelFormatter={tooltipLabel}
             contentStyle={{
               borderRadius: '8px',
               border: '1px solid #e2e8f0',
               fontSize: '12px',
             }}
           />
-          <Line
-            type="monotone"
-            dataKey="tons"
-            stroke="#0f766e"
-            strokeWidth={2}
-            dot={{ fill: '#0f766e', r: 3 }}
-            activeDot={{ r: 5 }}
-            name="배출량"
-          />
+          {showLegend ? (
+            <Legend wrapperStyle={{ fontSize: 11 }} iconType="line" />
+          ) : null}
+          {sourceKeys.map((key) => {
+            const color = getEmissionSourceColor(key)
+            return (
+              <Line
+                key={key}
+                type="monotone"
+                dataKey={key}
+                stroke={color}
+                strokeWidth={2}
+                dot={{ fill: color, r: 3 }}
+                activeDot={{ r: 5 }}
+                name={getSourceLabel(key)}
+              />
+            )
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>

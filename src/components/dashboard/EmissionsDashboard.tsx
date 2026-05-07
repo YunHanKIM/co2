@@ -4,8 +4,9 @@ import dynamic from 'next/dynamic'
 import { useMemo, useState, useCallback } from 'react'
 import type { Company, Country } from '@/types'
 import {
-  aggregateByMonth,
+  aggregateByMonthBySource,
   aggregateBySource,
+  collectSourceKeys,
   filterRows,
   formatYearMonthKo,
   getSourceLabel,
@@ -54,7 +55,11 @@ const EmissionsDashboard = ({ companies, countries }: EmissionsDashboardProps) =
     [allRows, countryCode, companyId],
   )
 
-  const monthData = useMemo(() => aggregateByMonth(filteredRows), [filteredRows])
+  const sourceKeys = useMemo(() => collectSourceKeys(filteredRows), [filteredRows])
+  const monthBySource = useMemo(
+    () => aggregateByMonthBySource(filteredRows, sourceKeys),
+    [filteredRows, sourceKeys],
+  )
   const sourceData = useMemo(() => aggregateBySource(filteredRows), [filteredRows])
   const sumTons = useMemo(() => totalTons(filteredRows), [filteredRows])
 
@@ -186,10 +191,14 @@ const EmissionsDashboard = ({ companies, countries }: EmissionsDashboardProps) =
             월별 배출 추이
           </h2>
           <p className="mt-1 text-xs text-app-muted">
-            선택한 필터 기준 월별 t CO₂e 합계
+            같은 달·배출원별 t CO₂e (디젤·LPG 등 색 구분)
           </p>
           <div className="mt-4">
-            <EmissionsTrendChart data={monthData} titleId={trendTitleId} />
+            <EmissionsTrendChart
+              splitByMonth={monthBySource}
+              sourceKeys={sourceKeys}
+              titleId={trendTitleId}
+            />
           </div>
         </section>
 
