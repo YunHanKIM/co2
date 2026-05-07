@@ -1,8 +1,11 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { ActivityCategory, ActivityRecord, EmissionFactorRecord } from '@/types'
-import { FACTOR_KEY_CATEGORY } from '@/lib/activity-validation'
+import {
+  FACTOR_KEY_CATEGORY,
+  type CreateActivityInput,
+} from '@/lib/activity-validation'
 
 type PcfActivityInputPanelProps = {
   factors: EmissionFactorRecord[]
@@ -34,6 +37,9 @@ const PcfActivityInputPanel = ({
   const [formMessage, setFormMessage] = useState<string | null>(null)
 
   const [csvText, setCsvText] = useState('')
+  const [stagedExcelRecords, setStagedExcelRecords] = useState<
+    CreateActivityInput[] | null
+  >(null)
   const [csvSave, setCsvSave] = useState<'idle' | 'loading'>('idle')
   const [csvErrors, setCsvErrors] = useState<{ line: number; message: string }[]>(
     [],
@@ -44,13 +50,14 @@ const PcfActivityInputPanel = ({
     return factors.filter((f) => FACTOR_KEY_CATEGORY[f.key] === form.category)
   }, [factors, form.category])
 
-  useEffect(() => {
-    if (!form.factorKey && factorsForCategory.length > 0) {
-      setForm((prev) => ({
-        ...prev,
-        factorKey: factorsForCategory[0].key,
-      }))
+  const resolvedFactorKey = useMemo(() => {
+    if (
+      form.factorKey &&
+      factorsForCategory.some((f) => f.key === form.factorKey)
+    ) {
+      return form.factorKey
     }
+    return factorsForCategory[0]?.key ?? ''
   }, [form.factorKey, factorsForCategory])
 
   const handleCategoryChange = useCallback(
@@ -89,14 +96,14 @@ const PcfActivityInputPanel = ({
       setFieldErrors({})
 
       const quantity = Number(form.quantity.replace(/,/g, '').trim())
-      const selected = factors.find((f) => f.key === form.factorKey)
+      const selected = factors.find((f) => f.key === resolvedFactorKey)
       const payload = {
         occurredOn: form.occurredOn.trim(),
         category: form.category,
         description: form.description.trim(),
         quantity,
         unit: selected?.unit,
-        factorKey: form.factorKey,
+        factorKey: resolvedFactorKey,
       }
 
       setFormSave('loading')
@@ -135,14 +142,54 @@ const PcfActivityInputPanel = ({
         setFormSave('idle')
       }
     },
-    [form, factors, onRecordsAdded],
+    [form, factors, onRecordsAdded, resolvedFactorKey],
   )
 
-  const handleImportCsv = useCallback(async () => {
+  const handleBatchImport = useCallback(async () => {
     setCsvErrors([])
     setCsvMessage(null)
+
+    const stagedCount = stagedExcelRecords?.length ?? 0
+    const hasPaste = Boolean(csvText.trim())
+
+    if (stagedCount === 0 && !hasPaste) {
+      setCsvMessage(
+        '엑셀 파일을 선택해 검증하거나, 붙여넣기 내용을 입력한 뒤 누르세요.',
+      )
+      return
+    }
+
     setCsvSave('loading')
     try {
+      if (stagedCount > 0 && stagedExcelRecords) {
+        const res = await fetch('/api/activities/import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ records: stagedExcelRecords }),
+        })
+        const data = await res.json().catch(() => ({}))
+
+        if (!res.ok) {
+          if (Array.isArray(data.errors)) {
+            setCsvErrors(data.errors)
+            return
+          }
+          setCsvMessage(
+            typeof data.error === 'string' ? data.error : '저장에 실패했습니다.',
+          )
+          return
+        }
+
+        const records = data.records as ActivityRecord[]
+        onRecordsAdded(records)
+        setStagedExcelRecords(null)
+        setCsvText('')
+        setCsvMessage(
+          `엑셀 ${data.count ?? records.length}건을 추가했습니다.`,
+        )
+        return
+      }
+
       const res = await fetch('/api/activities/import', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -168,7 +215,52 @@ const PcfActivityInputPanel = ({
     } finally {
       setCsvSave('idle')
     }
-  }, [csvText, onRecordsAdded])
+  }, [stagedExcelRecords, csvText, onRecordsAdded])
+
+  const handleExcelFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      e.target.value = ''
+      if (!file) {
+        return
+      }
+      const name = file.name.toLowerCase()
+      if (!name.endsWith('.xlsx') && !name.endsWith('.xls')) {
+        setStagedExcelRecords(null)
+        setCsvErrors([])
+        setCsvMessage('.xlsx 또는 .xls 파일만 선택할 수 있습니다.')
+        return
+      }
+
+      setCsvSave('loading')
+      setCsvErrors([])
+      setCsvMessage(null)
+
+      try {
+        const buf = await file.arrayBuffer()
+        const { parseActivityExcelBuffer } = await import('@/lib/excel-import')
+        const parsed = parseActivityExcelBuffer(buf, factors)
+        if (!parsed.ok) {
+          setStagedExcelRecords(null)
+          setCsvErrors(parsed.errors)
+          return
+        }
+
+        setStagedExcelRecords(parsed.records)
+        setCsvErrors([])
+        setCsvText('')
+        setCsvMessage(
+          `${parsed.records.length}건을 읽었습니다. 아래 「검증 후 일괄 추가」로 저장하세요.`,
+        )
+      } catch {
+        setStagedExcelRecords(null)
+        setCsvMessage('엑셀 파일을 읽는 중 오류가 났습니다.')
+      } finally {
+        setCsvSave('idle')
+      }
+    },
+    [factors],
+  )
 
   return (
     <section
@@ -179,8 +271,10 @@ const PcfActivityInputPanel = ({
         활동 데이터 입력
       </h2>
       <p className="mt-1 text-xs text-app-muted">
-        잘못된 값은 필드·행 번호와 함께 메시지로 표시됩니다. CSV는 세미콜론(;)으로
-        구분합니다.
+        잘못된 값은 필드·행 번호와 함께 메시지로 표시됩니다.
+        <span className="font-medium text-app-text">.xlsx / .xls 파일</span>로
+        올린 뒤 같은 화면의 「검증 후 일괄 추가」로 저장하거나, 표를 붙여넣어
+        사용할 수 있습니다(세미콜론·CSV).
       </p>
 
       <div
@@ -214,7 +308,7 @@ const PcfActivityInputPanel = ({
           ].join(' ')}
           onClick={() => setMode('csv')}
         >
-          CSV 붙여넣기
+          엑셀 / 붙여넣기
         </button>
       </div>
 
@@ -276,7 +370,7 @@ const PcfActivityInputPanel = ({
             <select
               id="act-factor"
               className="mt-1 w-full rounded-lg border border-app-border bg-white px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-app-accent-soft"
-              value={form.factorKey}
+              value={resolvedFactorKey}
               onChange={(e) => handleFieldChange('factorKey', e.target.value)}
               aria-invalid={Boolean(fieldErrors.factorKey)}
               required
@@ -359,25 +453,49 @@ const PcfActivityInputPanel = ({
       ) : (
         <div className="mt-4 space-y-3">
           <p className="text-xs text-app-muted">
-            예:{' '}
-            <code className="rounded bg-slate-100 px-1">
-              2025-01-01;전기;한국전력;110;kWh
-            </code>
+            열 순서:{' '}
+            <span className="font-medium text-app-text">
+              일자 · 활동 유형 · 설명 · 양 · 단위
+            </span>
+            헤더 행은 자동 생략. 날짜 셀(숫자·날짜 형식) 모두
+            처리합니다.
             <br />
-            원소재는 설명에 플라스틱 1/2를 넣거나 6번째 열에 factorKey(
-            <code className="rounded bg-slate-100 px-1">raw-plastic-2</code> 등)를
-            적습니다.
+            텍스트 예:{' '}
+            <code className="rounded bg-slate-100 px-1">
+              2025-01-01[탭]전기[탭]한국전력[탭]110[탭]kWh
+            </code>
           </p>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-app-border bg-white px-4 py-2 text-sm font-medium text-app-text hover:bg-slate-50 focus-within:ring-2 focus-within:ring-app-accent-soft">
+              <input
+                type="file"
+                accept=".xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                className="sr-only"
+                onChange={handleExcelFile}
+                disabled={csvSave === 'loading'}
+                aria-label="엑셀 파일 선택"
+              />
+              {csvSave === 'loading' ? '엑셀 처리 중…' : '엑셀 파일 (.xlsx / .xls)'}
+            </label>
+            {stagedExcelRecords && stagedExcelRecords.length > 0 ? (
+              <span className="text-xs font-medium text-app-accent">
+                엑셀 {stagedExcelRecords.length}건 저장 대기
+              </span>
+            ) : null}
+          </div>
+
           <textarea
             className="min-h-[140px] w-full rounded-lg border border-app-border px-3 py-2 font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-app-accent-soft"
             value={csvText}
             onChange={(e) => {
               setCsvText(e.target.value)
+              setStagedExcelRecords(null)
               setCsvErrors([])
               setCsvMessage(null)
             }}
             aria-label="CSV 데이터"
-            placeholder={`2025-01-01;전기;한국전력;110;kWh\n2025-01-01;원소재;플라스틱 1;230;kg`}
+            placeholder={`Excel에서 복사한 표를 그대로 붙여넣거나:\n2025-01-01;전기;한국전력;110;kWh\n2025-01-01;원소재;플라스틱 1;230;kg`}
           />
           {csvErrors.length > 0 ? (
             <ul
@@ -398,9 +516,12 @@ const PcfActivityInputPanel = ({
           ) : null}
           <button
             type="button"
-            disabled={csvSave === 'loading' || !csvText.trim()}
+            disabled={
+              csvSave === 'loading' ||
+              (!(stagedExcelRecords?.length ?? 0) && !csvText.trim())
+            }
             className="rounded-lg bg-app-accent px-4 py-2 text-sm font-medium text-white hover:bg-app-accent-hover disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-accent-soft"
-            onClick={handleImportCsv}
+            onClick={handleBatchImport}
           >
             {csvSave === 'loading' ? '처리 중…' : '검증 후 일괄 추가'}
           </button>

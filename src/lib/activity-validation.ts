@@ -16,6 +16,86 @@ export const FACTOR_KEY_CATEGORY: Record<string, ActivityCategory> = {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
+/** Excel 붙여넣기: 2025-01-01, 2025/1/1, 2025.1.1, 05/07/26(MM/DD/YY) 등 → YYYY-MM-DD */
+export const normalizeOccurredOn = (raw: string): string | null => {
+  const s = raw.trim()
+  if (DATE_RE.test(s)) {
+    return s
+  }
+  const norm = s.replace(/\./g, '/').replace(/-/g, '/')
+  const chunks = norm.split('/').map((x) => x.trim())
+  if (chunks.length !== 3) {
+    return null
+  }
+  const [a, b, c] = chunks
+  if (!a || !b || !c) {
+    return null
+  }
+  if (a.length === 4) {
+    return `${a}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`
+  }
+  // MM/DD/YY (엑셀 미국식 표시, 예: 05-07-26 → 2026-05-07)
+  if ((c.length === 2 || c.length === 4) && /^\d+$/.test(a) && /^\d+$/.test(b)) {
+    const month = Number(a)
+    const day = Number(b)
+    let year = Number(c)
+    if (c.length === 2) {
+      year = year >= 70 ? 1900 + year : 2000 + year
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31 || year < 1900 || year > 2100) {
+      return null
+    }
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  }
+  return null
+}
+
+/** 탭(Excel 복사) · 세미콜론 · 쉼표(CSV, 따옴표 허용) */
+export const splitLineIntoColumns = (line: string): string[] => {
+  if (line.includes('\t')) {
+    return line.split(/\t/).map((cell) => cell.trim())
+  }
+  if (line.includes(';')) {
+    return line.split(';').map((cell) => cell.trim())
+  }
+  const out: string[] = []
+  let cur = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (ch === '"') {
+      inQuotes = !inQuotes
+      continue
+    }
+    if (ch === ',' && !inQuotes) {
+      out.push(cur.trim())
+      cur = ''
+      continue
+    }
+    cur += ch
+  }
+  out.push(cur.trim())
+  return out
+}
+
+const isLikelyHeaderRow = (parts: string[]): boolean => {
+  if (parts.length < 2) {
+    return false
+  }
+  const c0 = (parts[0] ?? '').toLowerCase()
+  const c1 = (parts[1] ?? '').toLowerCase()
+  if (c0.includes('일자') || c0 === 'date') {
+    return true
+  }
+  if (c1.includes('활동') && c1.includes('유형')) {
+    return true
+  }
+  if (parts.some((p) => p.includes('배출계수'))) {
+    return true
+  }
+  return false
+}
+
 const CATEGORY_KO: Record<string, ActivityCategory> = {
   전기: 'electricity',
   원소재: 'raw_material',
@@ -25,7 +105,11 @@ const CATEGORY_KO: Record<string, ActivityCategory> = {
 export const normalizeUnit = (
   raw: string,
 ): ActivityRecord['unit'] | null => {
-  const t = raw.trim().toLowerCase().replace(/\s/g, '')
+  const t = raw
+    .trim()
+    .toLowerCase()
+    .replace(/\s/g, '')
+    .replace(/[–—−]/g, '-')
   if (t === 'kwh') {
     return 'kWh'
   }
@@ -158,41 +242,68 @@ export const validateCreateActivity = (
 
 export type CsvImportRowError = { line: number; message: string }
 
-/** 세미콜론 구분: YYYY-MM-DD;전기|원소재|운송;설명;량;kWh|kg|ton-km[;factorKey] */
-export const parseActivityCsv = (
-  text: string,
+/**
+ * 2차원 셀 배열 → 검증된 활동 행 (Excel·붙여넣기 공통)
+ * 열: 일자 | 활동 유형 | 설명 | 양 | 단위 [, factorKey]
+ */
+export const parseActivityMatrix = (
+  matrix: string[][],
   factors: EmissionFactorRecord[],
 ):
   | { ok: true; records: CreateActivityInput[] }
   | { ok: false; errors: CsvImportRowError[] } => {
-  const rawLines = text.split(/\r?\n/).map((l) => l.trim())
-  const lines = rawLines.filter((l) => l.length > 0)
-  if (lines.length === 0) {
-    return { ok: false, errors: [{ line: 1, message: '붙여넣을 내용이 비어 있습니다' }] }
+  if (matrix.length === 0) {
+    return { ok: false, errors: [{ line: 1, message: '데이터가 비어 있습니다' }] }
   }
 
   const rowErrors: CsvImportRowError[] = []
   const records: CreateActivityInput[] = []
 
   let i = 0
-  if (/^일자|^date/i.test(lines[0] ?? '')) {
+  const headParts = (matrix[0] ?? []).map((c) => String(c ?? '').trim())
+  if (isLikelyHeaderRow(headParts)) {
     i = 1
   }
 
-  for (; i < lines.length; i++) {
+  for (; i < matrix.length; i++) {
     const lineNum = i + 1
-    const line = lines[i]
-    const parts = line.split(';').map((p) => p.trim())
+    const rawParts = (matrix[i] ?? []).map((c) => String(c ?? '').trim())
+    const hasContent = rawParts.some((p) => p.length > 0)
+    if (!hasContent) {
+      continue
+    }
+
+    const parts = rawParts.filter((p, idx) => {
+      if (idx < 5) {
+        return true
+      }
+      return p.length > 0
+    })
+
     if (parts.length < 5) {
       rowErrors.push({
         line: lineNum,
         message:
-          '열은 5개 이상 필요합니다: 일자;활동유형;설명;량;단위[;factorKey]',
+          '열 5개 필요: 일자, 활동유형(전기/원소재/운송), 설명, 양, 단위',
       })
       continue
     }
 
-    const [d, catTok, desc, qtyRaw, unitTok, factorOpt] = parts
+    const dRaw = parts[0] ?? ''
+    const catTok = parts[1] ?? ''
+    const desc = parts[2] ?? ''
+    const qtyRaw = parts[3] ?? ''
+    const unitTok = parts[4] ?? ''
+    const factorOpt = parts[5]?.trim() ?? ''
+
+    const d = normalizeOccurredOn(dRaw)
+    if (!d) {
+      rowErrors.push({
+        line: lineNum,
+        message: `일자를 해석할 수 없습니다: ${dRaw} (YYYY-MM-DD 또는 YYYY/M/D)`,
+      })
+      continue
+    }
     const cat = parseCategoryToken(catTok)
     if (!cat) {
       rowErrors.push({
@@ -220,20 +331,12 @@ export const parseActivityCsv = (
       continue
     }
 
-    if (!DATE_RE.test(d)) {
-      rowErrors.push({
-        line: lineNum,
-        message: '일자는 YYYY-MM-DD 형식이어야 합니다',
-      })
-      continue
-    }
-
     if (!desc) {
       rowErrors.push({ line: lineNum, message: '설명이 비어 있습니다' })
       continue
     }
 
-    let factorKey = factorOpt?.trim() ?? ''
+    let factorKey = factorOpt
     if (!factorKey) {
       const inferred = inferFactorKey(cat, desc, unit)
       if (!inferred) {
@@ -271,5 +374,29 @@ export const parseActivityCsv = (
     return { ok: false, errors: rowErrors }
   }
 
+  if (records.length === 0) {
+    return { ok: false, errors: [{ line: 1, message: '유효한 데이터 행이 없습니다' }] }
+  }
+
   return { ok: true, records }
+}
+
+/**
+ * 텍스트 붙여넣기: 탭(Excel) · 세미콜론 · 쉼표(CSV)
+ */
+export const parseActivityCsv = (
+  text: string,
+  factors: EmissionFactorRecord[],
+):
+  | { ok: true; records: CreateActivityInput[] }
+  | { ok: false; errors: CsvImportRowError[] } => {
+  const stripped = text.replace(/^\uFEFF/, '')
+  const rawLines = stripped.split(/\r?\n/).map((l) => l.trimEnd())
+  const lines = rawLines.filter((l) => l.length > 0)
+  if (lines.length === 0) {
+    return { ok: false, errors: [{ line: 1, message: '붙여넣을 내용이 비어 있습니다' }] }
+  }
+
+  const matrix = lines.map((line) => splitLineIntoColumns(line))
+  return parseActivityMatrix(matrix, factors)
 }
